@@ -1,0 +1,20 @@
+{
+	"name": "redlix-vo",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"start-dev": "nodemon --inspect server-demo",
+		"start": "node server-demo",
+		"client-minify": "terser --compress --comments --output client.min.js client.js"
+	},
+	"author": "",
+	"license": "ISC",
+	"dependencies": {},
+	"devDependencies": {
+		"terser": "^4.1.4",
+		"express": "^4.17.1",
+		"ws": "^7.1.2"
+	}
+}
