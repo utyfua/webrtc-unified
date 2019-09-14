@@ -15,13 +15,23 @@
 		on(eventName, callback, parent) {
 			this._events[eventName] = this._events[eventName] || [];
 			this._events[eventName].push(callback);
-			if (parent) parent._parent_events.push([false, eventName, callback]);
-
+			if (parent)
+				parent._parent_events.push([false, eventName, callback]);
 		}
 		once(eventName, callback, parent) {
 			this._events_once[eventName] = this._events_once[eventName] || [];
+			if (parent) {
+				let original = callback;
+				callback = (...args) => {
+					original.apply(this, args);
+					parent._parent_events = parent._parent_events.filter(
+						line => !(line[0] && line[1] === eventName && line[2] === callback)
+					);
+				}
+			}
 			this._events_once[eventName].push(callback);
-			if (parent) parent._parent_events.push([true, eventName, callback]);
+			if (parent)
+				parent._parent_events.push([true, eventName, callback]);
 		}
 		oncePromice(eventName) {
 			return new Promice(callback => this.once(eventName, callback));
@@ -50,10 +60,10 @@
 		emit(eventName, ...args) {
 			let count = 0;
 
-			function proc(_events) {
-				if (!_events) return;
-				for (let i = 0; i < _events.length; i++) {
-					_events[i].apply(this, args);
+			function proc(events) {
+				if (!events) return;
+				for (let i = 0; i < events.length; i++) {
+					events[i].apply(this, args);
 					count++;
 				};
 			}
@@ -95,24 +105,80 @@
 			this.emit(data.action, data);
 		}
 
+		getClient(clientId) {
+			return this.clients.find(client => client.clientId == clientId);
+		}
 		joinRoom(roomId = "default") {
 			this.connectionSend({
 				"eventName": "joinRoom",
-				roomId
+				roomId,
+				localStreamsLength: this.localStreams.length,
 			});
 		}
 
 		// events handlers
 		event_getPeers(data) {
 			this.youId = data.youId;
-			data.connections.forEach(data => this.event_newPeerConnected(data, this));
+			data.connections.forEach(clientId => this.event_newPeerConnected({
+				clientId
+			}, this));
 		}
 		event_newPeerConnected(data, receiver) {
 			new WebRTCSimpleClient({
 				root: receiver || this,
 				clientId: data.clientId,
-				isReceiver: !!receiver,
+				initer: receiver
 			});
+		}
+		event_receiveOffer(data) {
+			let client = this.getClient(data.clientId);
+			if (!client) return console.log('client not found', data.clientId);
+			client.receiveOffer(data.offer);
+		}
+
+		setMedia({
+			type,
+			enable,
+			args
+		}) {
+			let stream = this.localStreams.find(stream => stream._type == type);
+			if (typeof enable === 'undefined') enable = !stream;
+			if (stream)
+				return !enable && this.removeLocalStream(stream, true);
+			if (!enable) return;
+			this.createStream({
+				type,
+				args
+			});
+		}
+		async createStream({
+			type,
+			args
+		}) {
+			if (['screen', 'video', 'audio'].indexOf(type) === -1)
+				throw new Error('media bad type - ' + type);
+			let mediaFunc = type === 'screen' ? 'getDisplayMedia' : 'getUserMedia';
+			let opts = type == 'screen' ? {} : {
+				[type]: args || true,
+			};
+			let stream;
+			try {
+				stream = await navigator.mediaDevices[mediaFunc](opts);
+			} catch (e) {
+				this.emit('rejectUseMedia', type);
+				return;
+			}
+			stream._type = type;
+			this.addLocalStream(stream);
+		}
+		addLocalStream(stream) {
+			this.localStreams.push(stream);
+			this.emit('addedLocalStream', stream, stream._type);
+		}
+		removeLocalStream(stream, needStop) {
+			if (needStop) stream.getTracks()[0].stop();
+			this.localStreams = this.localStreams.filter(local => local !== stream);
+			this.emit('removedLocalStream', stream, stream._type);
 		}
 	};
 
@@ -120,39 +186,109 @@
 		constructor({
 			root,
 			clientId,
-			isReceiver
+			initer
 		}) {
 			this.root = root;
 			this.clientId = clientId;
 			this.transceivers = [];
 			this._parent_events = [];
-			this.initConnection({
-				isReceiver
-			});
 			root.clients.push(this);
+			this.initConnection();
+			// if(initer)
+			// this.createOffer();
 		}
-		initConnection({
-			isReceiver
-		}) {
-			if (isReceiver) return; // we must wait other client
+		initConnection(initer) {
 			let root = this.root;
-			if (!root.localStreams.length) {
-				root.once('addedLocalStream', () => this.initConnection(), this);
-				return;
-			};
 			let peer = this.peer = new RTCPeerConnection(root.rtcpeerConfig);
-			suncLocalStreams();
+			this.suncLocalStreams();
 			root.on('addedLocalStream', () => this.suncLocalStreams(), this);
-			
+			root.on('removedLocalStream', () => this.suncLocalStreams(), this);
+			peer.ontrack = (event) => {
+				var remote = document.createElement("video");
+				document.body.appendChild(remote);
+				let stream = new MediaStream([event.track]);
+				remote.srcObject = stream;
+				remote.play();
+				remote.volume = 1;
+				event.track.onmute = (e) => console.log('onmute', e);
+				console.log(peer, event, peer.getTransceivers(), stream, remote);
+			};
+			//https://stackoverflow.com/questions/15484729/why-doesnt-onicecandidate-work
+			// peer.onicecandidate = (event) => {
+			// 	if (event.candidate)
+			// 		root.connectionSend({
+			// 			"eventName": "sendIceCandidate",
+			// 			"label": event.candidate.sdpMLineIndex,
+			// 			"candidate": event.candidate,
+			// 			"clientId": this.clientId
+			// 		});
+			// };
+			peer.oniceconnectionstatechange = (event) => {
+				if (peer.iceConnectionState === "failed") {
+					/* possibly reconfigure the connection in some way here */
+					/* then request ICE restart */
+					return peer.restartIce();
+				}
+				console.log('peer state', peer.iceConnectionState);
+			};
+			// peer.negotiating;
+			peer.onnegotiationneeded = (event) => {
+				this.createOffer();
+			};
+		}
+		async createOffer() {
+			let peer = this.peer;
+			let offer = await peer.createOffer();
+			await peer.setLocalDescription(offer);
+			this.root.connectionSend({
+				eventName: "sendOffer",
+				offer,
+				clientId: this.clientId,
+			});
+		}
+		async receiveOffer(offer) {
+			let root = this.root;
+			let peer = this.peer;
+			await peer.setRemoteDescription(offer);
+			if (offer.type === 'offer') {
+				let answer = await peer.createAnswer();
+				await peer.setLocalDescription(answer)
+				root.connectionSend({
+					eventName: "sendOffer",
+					offer: answer,
+					clientId: this.clientId,
+				});
+			}
 		}
 		suncLocalStreams() {
 			let peer = this.peer;
 			let root = this.root;
 			let streams = root.localStreams;
-			streams.forEach(stream => {
-				peer.addTransceiver(stream.getTracks()[0]);
+			let changed = false;
+			//rtcSimple.clients[0].peer.getTransceivers()[0].sender.track==rtcSimple.localStreams[0].getTracks()[0]\
+			let transceivers = peer.getTransceivers().filter(transceiver => 
+				transceiver.sender.track && // we check local theards here
+				transceiver.currentDirection != "inactive" // fuck chrome
+			);
+			streams.forEach(stream =>
+				stream.getTracks().forEach(track => {
+					let length = transceivers.length;
+					transceivers = transceivers.filter(transceiver => transceiver.sender.track !== track);
+					if (length === transceivers.length) {
+						let transceiver = peer.addTransceiver(track);
+						changed = true;
+					}
+				})
+			);
+			transceivers.forEach(transceiver => {
+				peer.removeTrack(transceiver.sender);
+				changed = true;
+				// transceiver.sender.stop();
 			});
-			console.log(peer.getTransceivers());
+			if (changed) setTimeout(() => this.createOffer(), 50);
+			// if (peer.iceConnectionState === "new" && streams.length)
+			// 	setTimeout(() => peer.iceConnectionState === "new" && this.createOffer(), 50);
+			console.log(streams, peer.getTransceivers(), transceivers)
 		}
 	};
 

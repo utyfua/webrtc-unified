@@ -44,35 +44,53 @@ socket.onmessage = function (msg) {
 // bind actions
 butt_micro.onclick = function () {
 	if (this.innerHTML == 'Enable micro') {
-		rtcSimple.useAudio(true);
+		rtcSimple.setMedia({
+			type:'audio',
+			enable: true,
+		});
 		this.innerHTML = 'Mute micro';
 	} else {
-		rtcSimple.useAudio(false);
+		rtcSimple.setMedia({
+			type:'audio',
+			enable: false,
+		});
 		this.innerHTML = 'Enable micro';
 	}
 }
 // butt_micro.onclick();
 butt_cam.onclick = function () {
 	if (this.innerHTML == 'Enable cam') {
-		rtcSimple.useVideo(true);
+		rtcSimple.setMedia({
+			type:'video',
+			enable: true,
+		});
 		this.innerHTML = 'Disable cam';
 	} else {
-		rtcSimple.useVideo(false);
+		rtcSimple.setMedia({
+			type:'video',
+			enable: false,
+		});
 		this.innerHTML = 'Enable cam';
 	}
 }
 butt_screen.onclick = function () {
 	if (this.innerHTML == 'Enable screen') {
-		rtcSimple.useDisplay(true);
+		rtcSimple.setMedia({
+			type:'display',
+			enable: true,
+		});
 		this.innerHTML = 'Disable screen';
 	} else {
-		rtcSimple.useDisplay(false);
+		rtcSimple.setMedia({
+			type:'display',
+			enable: false,
+		});
 		this.innerHTML = 'Enable screen';
 	}
 }
 
 // user reject request to use audio/video/screen
-rtcSimple.on('rejectUseStream', function (media_type) {
+rtcSimple.on('rejectUseMedia', function (media_type) {
 	alert('reject request to use ' + media_type);
 });
 
