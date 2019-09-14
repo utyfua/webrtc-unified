@@ -155,10 +155,10 @@
 			type,
 			args
 		}) {
-			if (['screen', 'video', 'audio'].indexOf(type) === -1)
+			if (['display', 'video', 'audio'].indexOf(type) === -1)
 				throw new Error('media bad type - ' + type);
-			let mediaFunc = type === 'screen' ? 'getDisplayMedia' : 'getUserMedia';
-			let opts = type == 'screen' ? {} : {
+			let mediaFunc = type === 'display' ? 'getDisplayMedia' : 'getUserMedia';
+			let opts = type == 'display' ? {} : {
 				[type]: args || true,
 			};
 			let stream;
@@ -204,14 +204,10 @@
 			root.on('addedLocalStream', () => this.suncLocalStreams(), this);
 			root.on('removedLocalStream', () => this.suncLocalStreams(), this);
 			peer.ontrack = (event) => {
-				var remote = document.createElement("video");
-				document.body.appendChild(remote);
 				let stream = new MediaStream([event.track]);
-				remote.srcObject = stream;
-				remote.play();
-				remote.volume = 1;
-				event.track.onmute = (e) => console.log('onmute', e);
-				console.log(peer, event, peer.getTransceivers(), stream, remote);
+				stream._type = event.track.kind;
+				this.root.emit('addedRemoteStream', stream, stream._type, this.clientId);
+				event.track.onmute = (e) => this.root.emit('removedRemoteStream', stream, stream._type, this.clientId);
 			};
 			//https://stackoverflow.com/questions/15484729/why-doesnt-onicecandidate-work
 			// peer.onicecandidate = (event) => {
@@ -266,7 +262,7 @@
 			let streams = root.localStreams;
 			let changed = false;
 			//rtcSimple.clients[0].peer.getTransceivers()[0].sender.track==rtcSimple.localStreams[0].getTracks()[0]\
-			let transceivers = peer.getTransceivers().filter(transceiver => 
+			let transceivers = peer.getTransceivers().filter(transceiver =>
 				transceiver.sender.track && // we check local theards here
 				transceiver.currentDirection != "inactive" // fuck chrome
 			);
@@ -288,7 +284,7 @@
 			if (changed) setTimeout(() => this.createOffer(), 50);
 			// if (peer.iceConnectionState === "new" && streams.length)
 			// 	setTimeout(() => peer.iceConnectionState === "new" && this.createOffer(), 50);
-			console.log(streams, peer.getTransceivers(), transceivers)
+			// console.log(streams, peer.getTransceivers(), transceivers)
 		}
 	};
 

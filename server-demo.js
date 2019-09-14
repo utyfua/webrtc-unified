@@ -3,7 +3,7 @@ var server = require('http').createServer(app);
 const WebSocketServer = require('ws').Server;
 var voicer = require('./server.js')();
 
-server.listen(process.env.PORT || 3000, '192.168.0.100');
+// server.listen(process.env.PORT || 3000, '192.168.0.100');
 server.listen(process.env.PORT || 3000);
 // server.listen(process.env.PORT || 3000);
 

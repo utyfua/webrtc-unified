@@ -45,13 +45,13 @@ socket.onmessage = function (msg) {
 butt_micro.onclick = function () {
 	if (this.innerHTML == 'Enable micro') {
 		rtcSimple.setMedia({
-			type:'audio',
+			type: 'audio',
 			enable: true,
 		});
 		this.innerHTML = 'Mute micro';
 	} else {
 		rtcSimple.setMedia({
-			type:'audio',
+			type: 'audio',
 			enable: false,
 		});
 		this.innerHTML = 'Enable micro';
@@ -61,13 +61,13 @@ butt_micro.onclick = function () {
 butt_cam.onclick = function () {
 	if (this.innerHTML == 'Enable cam') {
 		rtcSimple.setMedia({
-			type:'video',
+			type: 'video',
 			enable: true,
 		});
 		this.innerHTML = 'Disable cam';
 	} else {
 		rtcSimple.setMedia({
-			type:'video',
+			type: 'video',
 			enable: false,
 		});
 		this.innerHTML = 'Enable cam';
@@ -76,18 +76,18 @@ butt_cam.onclick = function () {
 butt_screen.onclick = function () {
 	if (this.innerHTML == 'Enable screen') {
 		rtcSimple.setMedia({
-			type:'display',
+			type: 'display',
 			enable: true,
 		});
 		this.innerHTML = 'Disable screen';
 	} else {
 		rtcSimple.setMedia({
-			type:'display',
+			type: 'display',
 			enable: false,
 		});
 		this.innerHTML = 'Enable screen';
 	}
-}
+};
 
 // user reject request to use audio/video/screen
 rtcSimple.on('rejectUseMedia', function (media_type) {
@@ -98,6 +98,8 @@ rtcSimple.on('rejectUseMedia', function (media_type) {
 rtcSimple.on('addedLocalStream', function (stream, media_type) {
 	// ignore voice
 	if (media_type == 'audio') return;
+	// ignore screen
+	if (media_type == 'screen' && you.srcObject) return;
 	you.srcObject = stream;
 	you.play();
 });
@@ -109,18 +111,23 @@ rtcSimple.on('removedLocalStream', function (stream, media_type) {
 	you.srcObject = undefined;
 });
 
+// handle remote stream for draw
+rtcSimple.on('addedRemoteStream', function (stream, media_type, clientId) {
+	// media_type - screen accepted as video on remote client
+	// but just in case screen type check
+	var tag = media_type === 'screen' ? 'video' : media_type;
+	var remote = document.createElement(tag);
+	document.body.appendChild(remote);
+	remote.srcObject = stream;
+	remote.play();
+	remote.volume = 1;
+	remote.dataset.clientId = clientId;
+});
 
-/*
-aahahhahhaha
-(async ()=>{
-	let stream=new MediaStream([
-		(await navigator.mediaDevices.getDisplayMedia({})).getTracks()[0],
-		...(await navigator.mediaDevices.getUserMedia({video:true})).getTracks(),
-	]);
-	you.srcObject = new MediaStream([stream.getTracks()[0]]);
-	you.play();
-	you2.srcObject = new MediaStream([stream.getTracks()[1]]);
-	you2.play();
-	console.log(stream.getTracks())
-})();
-*/
+// handle remote stream for remove
+rtcSimple.on('removedRemoteStream', function (stream, media_type, clientId) {
+	let mediaList = document.querySelectorAll('[data-client-id="' + clientId + '"]');
+	for (let i = 0; i < mediaList.length; i++)
+		if (mediaList[i].srcObject === stream)
+			mediaList[i].remove();
+});
