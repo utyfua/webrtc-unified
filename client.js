@@ -193,16 +193,13 @@
 			this.transceivers = [];
 			this._parent_events = [];
 			root.clients.push(this);
-			this.initConnection();
+			this.initConnection(initer);
 			// if(initer)
 			// this.createOffer();
 		}
 		initConnection(initer) {
 			let root = this.root;
 			let peer = this.peer = new RTCPeerConnection(root.rtcpeerConfig);
-			this.suncLocalStreams();
-			root.on('addedLocalStream', () => this.suncLocalStreams(), this);
-			root.on('removedLocalStream', () => this.suncLocalStreams(), this);
 			peer.ontrack = (event) => {
 				let stream = new MediaStream([event.track]);
 				stream._type = event.track.kind;
@@ -220,17 +217,25 @@
 			// 		});
 			// };
 			peer.oniceconnectionstatechange = (event) => {
+				// if (peer.isNegotiating && peer.signalingState == "stable") peer.isNegotiating = false;
+				if (peer.autofixTimer && peer.autofixTimer != -1) {
+					clearTimeout(peer.autofixTimer);
+					peer.autofixTimer = -1;
+				}
 				if (peer.iceConnectionState === "failed") {
 					/* possibly reconfigure the connection in some way here */
 					/* then request ICE restart */
 					return peer.restartIce();
-				}
+				};
 				console.log('peer state', peer.iceConnectionState);
 			};
 			// peer.negotiating;
 			peer.onnegotiationneeded = (event) => {
 				this.createOffer();
 			};
+			this.suncLocalStreams();
+			root.on('addedLocalStream', () => this.suncLocalStreams(), this);
+			root.on('removedLocalStream', () => this.suncLocalStreams(), this);
 		}
 		async createOffer() {
 			let peer = this.peer;
@@ -254,7 +259,9 @@
 					offer: answer,
 					clientId: this.clientId,
 				});
-			}
+				if (!peer.autofixTimer)
+					peer.autofixTimer = setTimeout(() => this.createOffer(), 200);
+			};
 		}
 		suncLocalStreams() {
 			let peer = this.peer;
@@ -281,7 +288,7 @@
 				changed = true;
 				// transceiver.sender.stop();
 			});
-			if (changed) setTimeout(() => this.createOffer(), 50);
+			// if (changed) setTimeout(() => this.createOffer(), 50);
 			// if (peer.iceConnectionState === "new" && streams.length)
 			// 	setTimeout(() => peer.iceConnectionState === "new" && this.createOffer(), 50);
 			// console.log(streams, peer.getTransceivers(), transceivers)
