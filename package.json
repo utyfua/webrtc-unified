@@ -1,6 +1,6 @@
 {
 	"name": "webrtc-unified",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"description": "This package was created to simplify work with original WebRTC",
 	"main": "index.js",
 	"scripts": {

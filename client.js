@@ -231,11 +231,14 @@
 			};
 			// peer.negotiating;
 			peer.onnegotiationneeded = (event) => {
+				// if (peer.isNegotiating) return;
+				// peer.isNegotiating = true;
 				this.createOffer();
 			};
-			this.suncLocalStreams();
 			root.on('addedLocalStream', () => this.suncLocalStreams(), this);
 			root.on('removedLocalStream', () => this.suncLocalStreams(), this);
+			if (initer) setTimeout(() => this.suncLocalStreams(), 1000);
+			else this.suncLocalStreams();
 		}
 		async createOffer() {
 			let peer = this.peer;
@@ -250,6 +253,7 @@
 		async receiveOffer(offer) {
 			let root = this.root;
 			let peer = this.peer;
+			// if (offer.type === 'offer' && peer.isNegotiating) return;
 			await peer.setRemoteDescription(offer);
 			if (offer.type === 'offer') {
 				let answer = await peer.createAnswer();

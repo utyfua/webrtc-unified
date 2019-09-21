@@ -57,7 +57,7 @@ butt_micro.onclick = function () {
 		this.innerHTML = 'Enable micro';
 	}
 }
-// butt_micro.onclick();
+butt_micro.onclick();
 butt_cam.onclick = function () {
 	if (this.innerHTML == 'Enable cam') {
 		rtcSimple.setMedia({
