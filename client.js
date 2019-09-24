@@ -85,7 +85,7 @@
 				"iceServers": [{
 					url: 'stun:stun.l.google.com:19302'
 				}, ]
-			}
+			};
 			if (typeof WebRTCSimple_TURN_SERVER != 'undefined')
 				this.rtcpeerConfig.iceServers.push(WebRTCSimple_TURN_SERVER);
 		}
@@ -115,18 +115,32 @@
 				localStreamsLength: this.localStreams.length,
 			});
 		}
+		leaveRoom() {
+			this.connectionSend({
+				"eventName": "leaveRoom",
+				roomId:this.roomId,
+			});
+			this.event_leaveRoom();
+			this.emit('leaveRoom');
+		}
 
 		// events handlers
-		event_getPeers(data) {
-			this.youId = data.youId;
-			data.connections.forEach(clientId => this.event_newPeerConnected({
-				clientId
-			}, this));
+		event_joinRoom(data) {
+			this.clientId = data.clientId;
+			this.userId = data.userId;
+			this.roomId = data.roomId;
+			data.connections.forEach(data => this.event_newPeerConnected(data, this));
+		}
+		event_leaveRoom() {
+			if(!this.roomId) return;
+			this.roomId = null;
+			
 		}
 		event_newPeerConnected(data, receiver) {
 			new WebRTCSimpleClient({
 				root: receiver || this,
 				clientId: data.clientId,
+				userId: data.userId,
 				initer: receiver
 			});
 		}
@@ -136,12 +150,16 @@
 			client.receiveOffer(data.offer);
 		}
 
-		setMedia({
-			type,
-			enable,
-			args
-		}) {
-			let stream = this.localStreams.find(stream => stream._type == type);
+		setMedia(data) {
+			if (typeof data == 'string') data = {
+				type: data
+			};
+			let {
+				type,
+				enable,
+				args
+			} = data;
+			let stream = this.getMedia(type);
 			if (typeof enable === 'undefined') enable = !stream;
 			if (stream)
 				return !enable && this.removeLocalStream(stream, true);
@@ -150,6 +168,9 @@
 				type,
 				args
 			});
+		}
+		getMedia(type) {
+			return this.localStreams.find(stream => stream._type == type)
 		}
 		async createStream({
 			type,
@@ -186,10 +207,12 @@
 		constructor({
 			root,
 			clientId,
+			userId,
 			initer
 		}) {
 			this.root = root;
 			this.clientId = clientId;
+			this.userId = userId;
 			this.transceivers = [];
 			this._parent_events = [];
 			root.clients.push(this);
@@ -235,10 +258,13 @@
 				// peer.isNegotiating = true;
 				this.createOffer();
 			};
-			root.on('addedLocalStream', () => this.suncLocalStreams(), this);
-			root.on('removedLocalStream', () => this.suncLocalStreams(), this);
-			if (initer) setTimeout(() => this.suncLocalStreams(), 1000);
-			else this.suncLocalStreams();
+			let streamsInit = () => {
+				root.on('addedLocalStream', () => this.suncLocalStreams(), this);
+				root.on('removedLocalStream', () => this.suncLocalStreams(), this);
+				this.suncLocalStreams();
+			}
+			if (initer) setTimeout(streamsInit, 1000);
+			else streamsInit()
 		}
 		async createOffer() {
 			let peer = this.peer;

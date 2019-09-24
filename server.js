@@ -15,7 +15,8 @@ class Client {
 		this.server = config.server;
 		this.ws = config.ws;
 		this.send = config.send;
-		this.id = GenID();
+		this.userId = config.userId;
+		this.clientId = config.clientId || GenID();
 	}
 	receive(data) {
 		if (data && data.eventName && typeof this['event_' + data.eventName] === 'function')
@@ -28,40 +29,46 @@ class Client {
 		let roomList = this.server.rooms[this.roomId] = this.server.rooms[this.roomId] || [];
 		roomList.push(this);
 		for (let i = 0; i < roomList.length; i++) {
-			let id = roomList[i].id;
-			if (id == this.id) continue;
-			connections.push(id);
-			roomList[i].send({
-				"eventName": "newPeerConnected",
-				"clientId": this.id
+			let clientId = roomList[i].clientId;
+			if (clientId == this.clientId) continue;
+			connections.push({
+				clientId,
+				userId: roomList[i].userId
 			});
-		}
+			roomList[i].send({
+				eventName: "newPeerConnected",
+				clientId: this.clientId,
+				userId: this.userId,
+			});
+		};
 		this.send({
-			eventName: "getPeers",
+			eventName: "joinRoom",
+			roomId: data.roomIdClient || this.roomId,
 			connections,
-			youId: this.id,
+			clientId: this.clientId,
+			userId: this.userId,
 		});
 	}
 	event_sendOffer(data) {
 		if (!this.roomId || !this.server.rooms[this.roomId] || !data.clientId) return;
-		let remote = this.server.rooms[this.roomId].find(client => data.clientId == client.id);
+		let remote = this.server.rooms[this.roomId].find(client => data.clientId == client.clientId);
 		remote && remote.send({
 			eventName: "receiveOffer",
 			offer: data.offer,
-			clientId: this.id,
+			clientId: this.clientId,
 		});
 	}
-	event_sendIceCandidate(data){
+	event_sendIceCandidate(data) {
 		if (!this.roomId || !this.server.rooms[this.roomId] || !data.clientId) return;
-		let remote = this.server.rooms[this.roomId].find(client => data.clientId == client.id);
+		let remote = this.server.rooms[this.roomId].find(client => data.clientId == client.clientId);
 		remote && remote.send({
 			eventName: "receiveIceCandidate",
 			candidate: data.candidate,
-			clientId: this.id,
+			clientId: this.clientId,
 		});
 	}
 	close() {
-		if(!this.roomId) return;
+		if (!this.roomId) return;
 		let roomListNew = [];
 		let roomList = this.server.rooms[this.roomId];
 		for (let i = 0; i < roomList.length; i++) {
@@ -70,7 +77,8 @@ class Client {
 			roomListNew.push(client);
 			client.send({
 				eventName: "removePeerConnected",
-				clientId: this.id
+				clientId: this.clientId,
+				userId: this.userId,
 			});
 		};
 		this.server.rooms[this.roomId] = roomListNew;
