@@ -102,9 +102,8 @@
 				typeof this['event_' + data.eventName] === 'function')
 				this['event_' + data.eventName](data);
 			else console.log(data);
-			this.emit(data.action, data);
+			this.emit(data.eventName, data);
 		}
-
 		getClient(clientId) {
 			return this.clients.find(client => client.clientId == clientId);
 		}
@@ -118,7 +117,7 @@
 		leaveRoom() {
 			this.connectionSend({
 				"eventName": "leaveRoom",
-				roomId:this.roomId,
+				roomId: this.roomId,
 			});
 			this.event_leaveRoom();
 			this.emit('leaveRoom');
@@ -126,15 +125,24 @@
 
 		// events handlers
 		event_joinRoom(data) {
+			this.event_leaveRoom();
 			this.clientId = data.clientId;
 			this.userId = data.userId;
 			this.roomId = data.roomId;
-			data.connections.forEach(data => this.event_newPeerConnected(data, this));
+			data.connections.forEach(data => {
+				this.event_newPeerConnected(data, this);
+				this.emit('newPeerConnected', data);
+			});
 		}
 		event_leaveRoom() {
-			if(!this.roomId) return;
+			if (!this.roomId) return;
 			this.roomId = null;
-			
+			this.clients.forEach(client => {
+				client.close();
+				this.emit('removePeerConnected', {
+					clientId: client.clientId
+				});
+			});
 		}
 		event_newPeerConnected(data, receiver) {
 			new WebRTCSimpleClient({
@@ -143,6 +151,12 @@
 				userId: data.userId,
 				initer: receiver
 			});
+		}
+		event_removePeerConnected({
+			clientId
+		}) {
+			let client = this.getClient(clientId);
+			if (client) client.close();
 		}
 		event_receiveOffer(data) {
 			let client = this.getClient(data.clientId);
@@ -215,6 +229,7 @@
 			this.userId = userId;
 			this.transceivers = [];
 			this._parent_events = [];
+			this.tracks = [];
 			root.clients.push(this);
 			this.initConnection(initer);
 			// if(initer)
@@ -224,10 +239,14 @@
 			let root = this.root;
 			let peer = this.peer = new RTCPeerConnection(root.rtcpeerConfig);
 			peer.ontrack = (event) => {
+				this.tracks.push(event.track);
 				let stream = new MediaStream([event.track]);
 				stream._type = event.track.kind;
 				this.root.emit('addedRemoteStream', stream, stream._type, this.clientId);
-				event.track.onmute = (e) => this.root.emit('removedRemoteStream', stream, stream._type, this.clientId);
+				event.track.onmute = (e) => {
+					this.tracks = this.tracks.filter(tr => tr != event.track)
+					this.root.emit('removedRemoteStream', stream, stream._type, this.clientId);
+				};
 			};
 			//https://stackoverflow.com/questions/15484729/why-doesnt-onicecandidate-work
 			// peer.onicecandidate = (event) => {
@@ -240,6 +259,7 @@
 			// 		});
 			// };
 			peer.oniceconnectionstatechange = (event) => {
+				console.debug('webrtc-unified', 'peer.signalingState:', peer.signalingState);
 				// if (peer.isNegotiating && peer.signalingState == "stable") peer.isNegotiating = false;
 				if (peer.autofixTimer && peer.autofixTimer != -1) {
 					clearTimeout(peer.autofixTimer);
@@ -248,9 +268,15 @@
 				if (peer.iceConnectionState === "failed") {
 					/* possibly reconfigure the connection in some way here */
 					/* then request ICE restart */
-					return peer.restartIce();
+					return peer.restartIce && peer.restartIce();
 				};
-				console.log('peer state', peer.iceConnectionState);
+				// if (peer.iceConnectionState == 'disconnected') setTimeout(() => {
+				// 	if (peer.iceConnectionState != 'disconnected') return;
+				// 	this.close();
+				// 	this.root.emit('removePeerConnected', {
+				// 		clientId: this.clientId
+				// 	});
+				// }, 500);
 			};
 			// peer.negotiating;
 			peer.onnegotiationneeded = (event) => {
@@ -290,15 +316,17 @@
 					clientId: this.clientId,
 				});
 				if (!peer.autofixTimer)
-					peer.autofixTimer = setTimeout(() => this.createOffer(), 200);
+					peer.autofixTimer = setTimeout(() => this.createOffer(), 1000);
 			};
 		}
 		suncLocalStreams() {
 			let peer = this.peer;
+			if (peer.signalingState == 'disconnected' || peer.signalingState == 'closed')
+				return;
 			let root = this.root;
 			let streams = root.localStreams;
 			let changed = false;
-			//rtcSimple.clients[0].peer.getTransceivers()[0].sender.track==rtcSimple.localStreams[0].getTracks()[0]\
+			//rtcSimple.clients[0].peer.getTransceivers()[0].sender.track==rtcSimple.localStreams[0].getTracks()[0]
 			let transceivers = peer.getTransceivers().filter(transceiver =>
 				transceiver.sender.track && // we check local theards here
 				transceiver.currentDirection != "inactive" // fuck chrome
@@ -322,6 +350,13 @@
 			// if (peer.iceConnectionState === "new" && streams.length)
 			// 	setTimeout(() => peer.iceConnectionState === "new" && this.createOffer(), 50);
 			// console.log(streams, peer.getTransceivers(), transceivers)
+		}
+		close() {
+			if (this.peer.signalingState != 'disconnected' && this.peer.signalingState != 'closed')
+				this.peer.close();
+			// trigger removedRemoteStream event 
+			this.tracks.forEach(track => track.onmute());
+			this.root.clients = this.root.clients.filter(client => client.clientId != this.clientId);
 		}
 	};
 

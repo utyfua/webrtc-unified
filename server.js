@@ -25,6 +25,8 @@ class Client {
 	}
 	event_joinRoom(data) {
 		let connections = [];
+		if (this.roomId)
+			this.close();
 		this.roomId = data.roomId;
 		let roomList = this.server.rooms[this.roomId] = this.server.rooms[this.roomId] || [];
 		roomList.push(this);
@@ -49,6 +51,9 @@ class Client {
 			userId: this.userId,
 		});
 	}
+	event_leaveRoom() {
+		this.close();
+	}
 	event_sendOffer(data) {
 		if (!this.roomId || !this.server.rooms[this.roomId] || !data.clientId) return;
 		let remote = this.server.rooms[this.roomId].find(client => data.clientId == client.clientId);
@@ -68,9 +73,16 @@ class Client {
 		});
 	}
 	close() {
-		if (!this.roomId) return;
+		let roomId=this.roomId;
+		this.roomId=null;
+		if (!roomId) return;
+		let roomList = this.server.rooms[roomId];
+		if (!roomList) return;
+		if (roomList.length < 2) {
+			delete this.server.rooms[roomId];
+			return;
+		};
 		let roomListNew = [];
-		let roomList = this.server.rooms[this.roomId];
 		for (let i = 0; i < roomList.length; i++) {
 			let client = roomList[i];
 			if (client === this) continue;
@@ -81,7 +93,8 @@ class Client {
 				userId: this.userId,
 			});
 		};
-		this.server.rooms[this.roomId] = roomListNew;
+		// if(!roomListNew.length)delete this.server.rooms[roomId];else
+		this.server.rooms[roomId] = roomListNew;
 	}
 };
 

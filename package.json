@@ -1,13 +1,13 @@
 {
 	"name": "webrtc-unified",
-	"version": "0.0.4",
+	"version": "0.0.5",
 	"description": "This package was created to simplify work with original WebRTC",
 	"main": "index.js",
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
 		"start-dev": "nodemon --inspect server-demo",
 		"start": "node server-demo",
-		"client-minify": "terser --compress --comments --output client.min.js client.js"
+		"min": "terser --compress --comments --output client.min.js client.js"
 	},
 	"author": "Utyfua",
 	"homepage": "https://github.com/utyfua/webrtc-unified#readme",
