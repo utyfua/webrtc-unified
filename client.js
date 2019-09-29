@@ -294,7 +294,10 @@
 		}
 		async createOffer() {
 			let peer = this.peer;
+			if (peer.isNegotiating) return;
+			peer.isNegotiating = true;
 			let offer = await peer.createOffer();
+			// console.log('createOffer', offer);
 			await peer.setLocalDescription(offer);
 			this.root.connectionSend({
 				eventName: "sendOffer",
@@ -305,7 +308,9 @@
 		async receiveOffer(offer) {
 			let root = this.root;
 			let peer = this.peer;
+			peer.isNegotiating = false;
 			// if (offer.type === 'offer' && peer.isNegotiating) return;
+			// console.log('receiveOffer', offer.type, offer)
 			await peer.setRemoteDescription(offer);
 			if (offer.type === 'offer') {
 				let answer = await peer.createAnswer();
