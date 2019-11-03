@@ -1,13 +1,16 @@
 // its client-demo.js file in package
 
 // ignore this file if you include client.js file early
-// const WebRTCSimple = require('webrtc-simple/client');
-let rtcSimple = new WebRTCSimple({
-	// high level error handler
-	onerror: (obj) => {
-		alert(JSON.stringify(obj))
-	}
-});
+// const WebRTCUnified = require('webrtc-unified/client');
+let rtcUnified = new WebRTCUnified();
+
+// add ice server
+// rtcUnified.addIceServer({
+// 	url: `turn:someserver.example:3478?transport=tcp`,
+// 	username: "username",
+// 	credential: "credential",
+// })
+
 
 // create connection with our server
 var socket = new WebSocket('ws' + location.origin.slice(4) + '/ws');
@@ -15,7 +18,7 @@ var socket = new WebSocket('ws' + location.origin.slice(4) + '/ws');
 // function to send data to the server
 function func_send(data) {
 	socket.send(JSON.stringify({
-		action: 'webrts-simple',
+		action: 'webrtc-unified',
 		data: data
 	}));
 };
@@ -26,31 +29,31 @@ socket.onclose = function () {
 };
 
 // get a messages handler function
-let conn_handler = rtcSimple.setConnect(func_send);
+let conn_handler = rtcUnified.setConnect(func_send);
 
 // handle socket a connected state
 socket.onopen = function () {
 	// join to default room
-	rtcSimple.joinRoom('default');
+	rtcUnified.joinRoom('default');
 };
 
 // handle messages
 socket.onmessage = function (msg) {
 	var json = JSON.parse(msg.data);
-	if (json.action === 'webrts-simple') conn_handler(json.data);
+	if (json.action === 'webrtc-unified') conn_handler(json.data);
 	else console.log(json);
 };
 
 // bind actions
 butt_micro.onclick = function () {
 	if (this.innerHTML == 'Enable micro') {
-		rtcSimple.setMedia({
+		rtcUnified.setMedia({
 			type: 'audio',
 			enable: true,
 		});
 		this.innerHTML = 'Mute micro';
 	} else {
-		rtcSimple.setMedia({
+		rtcUnified.setMedia({
 			type: 'audio',
 			enable: false,
 		});
@@ -60,13 +63,13 @@ butt_micro.onclick = function () {
 butt_micro.onclick();
 butt_cam.onclick = function () {
 	if (this.innerHTML == 'Enable cam') {
-		rtcSimple.setMedia({
+		rtcUnified.setMedia({
 			type: 'video',
 			enable: true,
 		});
 		this.innerHTML = 'Disable cam';
 	} else {
-		rtcSimple.setMedia({
+		rtcUnified.setMedia({
 			type: 'video',
 			enable: false,
 		});
@@ -75,13 +78,13 @@ butt_cam.onclick = function () {
 }
 butt_screen.onclick = function () {
 	if (this.innerHTML == 'Enable screen') {
-		rtcSimple.setMedia({
+		rtcUnified.setMedia({
 			type: 'display',
 			enable: true,
 		});
 		this.innerHTML = 'Disable screen';
 	} else {
-		rtcSimple.setMedia({
+		rtcUnified.setMedia({
 			type: 'display',
 			enable: false,
 		});
@@ -90,12 +93,12 @@ butt_screen.onclick = function () {
 };
 
 // user reject request to use audio/video/screen
-rtcSimple.on('rejectUseMedia', function (media_type) {
+rtcUnified.on('rejectUseMedia', function (media_type) {
 	alert('reject request to use ' + media_type);
 });
 
 // handle local stream for draw
-rtcSimple.on('addedLocalStream', function (stream, media_type) {
+rtcUnified.on('addedLocalStream', function (stream, media_type) {
 	// ignore voice
 	if (media_type == 'audio') return;
 	// ignore screen
@@ -105,14 +108,14 @@ rtcSimple.on('addedLocalStream', function (stream, media_type) {
 });
 
 // handle local stream for remove
-rtcSimple.on('removedLocalStream', function (stream, media_type) {
+rtcUnified.on('removedLocalStream', function (stream, media_type) {
 	// ignore voice
 	if (media_type == 'audio') return;
 	you.srcObject = undefined;
 });
 
 // handle remote stream for draw
-rtcSimple.on('addedRemoteStream', function (stream, media_type, clientId) {
+rtcUnified.on('addedRemoteStream', function (stream, media_type, clientId) {
 	// media_type - screen accepted as video on remote client
 	// but just in case screen type check
 	var tag = media_type === 'screen' ? 'video' : media_type;
@@ -125,7 +128,7 @@ rtcSimple.on('addedRemoteStream', function (stream, media_type, clientId) {
 });
 
 // handle remote stream for remove
-rtcSimple.on('removedRemoteStream', function (stream, media_type, clientId) {
+rtcUnified.on('removedRemoteStream', function (stream, media_type, clientId) {
 	let mediaList = document.querySelectorAll('[data-client-id="' + clientId + '"]');
 	for (let i = 0; i < mediaList.length; i++)
 		if (mediaList[i].srcObject === stream)

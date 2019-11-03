@@ -6,6 +6,7 @@ class Server {
 		this.rooms = {};
 	}
 	addClient(args) {
+		if(typeof args !== 'object') throw 'first argumet in addClient must be object with key "send"\nExample: voicer.addClient({send: function})';
 		args.server = this;
 		return new Client(args);
 	}
@@ -14,6 +15,7 @@ class Client {
 	constructor(config) {
 		this.server = config.server;
 		this.ws = config.ws;
+		if (typeof config.send !== 'function') throw 'in function addClient "send" must be function\nExample: voicer.addClient({send: function})';
 		this.send = config.send;
 		this.userId = config.userId;
 		this.clientId = config.clientId || GenID();
@@ -73,8 +75,8 @@ class Client {
 		});
 	}
 	close() {
-		let roomId=this.roomId;
-		this.roomId=null;
+		let roomId = this.roomId;
+		this.roomId = null;
 		if (!roomId) return;
 		let roomList = this.server.rooms[roomId];
 		if (!roomList) return;

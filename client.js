@@ -74,7 +74,7 @@
 		}
 	}
 
-	class WebRTCSimple extends EventEmitter {
+	class WebRTCUnified extends EventEmitter {
 		constructor(args) {
 			super();
 			this.args = args;
@@ -86,10 +86,13 @@
 					url: 'stun:stun.l.google.com:19302'
 				}, ]
 			};
-			if (typeof WebRTCSimple_TURN_SERVER != 'undefined')
-				this.rtcpeerConfig.iceServers.push(WebRTCSimple_TURN_SERVER);
+			if (typeof WebRTCUnified_TURN_SERVER != 'undefined')
+				this.addIceServer(WebRTCUnified_TURN_SERVER);
 		}
 
+		addIceServer(iceServer){
+			this.rtcpeerConfig.iceServers.push(iceServer);
+		}
 		// external connection
 		setConnect(send) {
 			this.connectionSend = send;
@@ -145,7 +148,7 @@
 			});
 		}
 		event_newPeerConnected(data, receiver) {
-			new WebRTCSimpleClient({
+			new WebRTCUnifiedClient({
 				root: receiver || this,
 				clientId: data.clientId,
 				userId: data.userId,
@@ -217,7 +220,7 @@
 		}
 	};
 
-	class WebRTCSimpleClient {
+	class WebRTCUnifiedClient {
 		constructor({
 			root,
 			clientId,
@@ -242,10 +245,10 @@
 				this.tracks.push(event.track);
 				let stream = new MediaStream([event.track]);
 				stream._type = event.track.kind;
-				this.root.emit('addedRemoteStream', stream, stream._type, this.clientId);
+				this.root.emit('addedRemoteStream', stream, stream._type, this.clientId, this.userId);
 				event.track.onmute = (e) => {
 					this.tracks = this.tracks.filter(tr => tr != event.track)
-					this.root.emit('removedRemoteStream', stream, stream._type, this.clientId);
+					this.root.emit('removedRemoteStream', stream, stream._type, this.clientId, this.userId);
 				};
 			};
 			//https://stackoverflow.com/questions/15484729/why-doesnt-onicecandidate-work
@@ -331,7 +334,7 @@
 			let root = this.root;
 			let streams = root.localStreams;
 			let changed = false;
-			//rtcSimple.clients[0].peer.getTransceivers()[0].sender.track==rtcSimple.localStreams[0].getTracks()[0]
+			//rtcUnified.clients[0].peer.getTransceivers()[0].sender.track==rtcUnified.localStreams[0].getTracks()[0]
 			let transceivers = peer.getTransceivers().filter(transceiver =>
 				transceiver.sender.track && // we check local theards here
 				transceiver.currentDirection != "inactive" // fuck chrome
@@ -366,7 +369,7 @@
 	};
 
 	if (typeof module === 'object')
-		module.exports = WebRTCSimple;
+		module.exports = WebRTCUnified;
 	else
-		window.WebRTCSimple = WebRTCSimple;
+		window.WebRTCUnified = WebRTCUnified;
 })();
